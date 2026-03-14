@@ -23,20 +23,18 @@ async function loadWords() {
   if (doc.exists) {
     words = doc.data() || {};
     console.log("Loaded words from Firestore:", Object.keys(words).length, "topics");
+  } else {
+    console.log("No existing data in Firestore, starting fresh");
   }
 }
 
-let saveTimer = null;
-function persistSoon() {
-  if (saveTimer) return;
-  saveTimer = setTimeout(async () => {
-    saveTimer = null;
-    try {
-      await docRef.set(words);
-    } catch (err) {
-      console.error("Failed to persist to Firestore:", err.message);
-    }
-  }, 500);
+async function persist() {
+  try {
+    await docRef.set(Object.assign({}, words));
+    console.log("Persisted to Firestore:", Object.keys(words).length, "topics");
+  } catch (err) {
+    console.error("FIRESTORE WRITE FAILED:", err.message);
+  }
 }
 
 function normalize(raw) {
@@ -55,6 +53,10 @@ function snapshot() {
   return Object.fromEntries(sorted);
 }
 
+app.get("/api/status", (req, res) => {
+  res.json({ inMemory: snapshot(), topicCount: Object.keys(words).length });
+});
+
 if (process.env.NODE_ENV !== "production") {
   app.post("/api/seed", (req, res) => {
     const entries = req.body;
@@ -63,7 +65,7 @@ if (process.env.NODE_ENV !== "production") {
       const w = normalize(word);
       if (w) words[w] = (words[w] || 0) + (count || 1);
     }
-    persistSoon();
+    persist();
     io.emit("state", snapshot());
     res.json(snapshot());
   });
@@ -72,7 +74,7 @@ if (process.env.NODE_ENV !== "production") {
 io.on("connection", (socket) => {
   socket.emit("state", snapshot());
 
-  socket.on("submit", ({ oldWord, newWord }) => {
+  socket.on("submit", async ({ oldWord, newWord }) => {
     const fresh = normalize(newWord);
     if (!fresh || fresh.length > 30) return;
 
@@ -85,8 +87,8 @@ io.on("connection", (socket) => {
     }
 
     words[fresh] = (words[fresh] || 0) + 1;
-    persistSoon();
     io.emit("state", snapshot());
+    await persist();
   });
 });
 
