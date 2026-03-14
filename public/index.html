@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Pie Party</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥧</text></svg>" />
+  <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #1b1525;
+      --surface: rgba(255, 255, 255, 0.06);
+      --surface-hover: rgba(255, 255, 255, 0.1);
+      --text: #f0eaf8;
+      --text-muted: #9a8fb5;
+      --accent: #f4a03e;
+      --accent-glow: rgba(244, 160, 62, 0.25);
+      --input-bg: rgba(255, 255, 255, 0.08);
+      --radius: 16px;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: "Nunito", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100dvh;
+      padding: 1.25rem 1rem 2rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 1.25rem;
+      animation: fadeDown 0.6s ease-out;
+    }
+
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    h1 {
+      font-family: "Lilita One", cursive;
+      font-size: 2.4rem;
+      letter-spacing: 0.02em;
+      background: linear-gradient(135deg, #f4a03e 0%, #e85d75 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-top: 0.25rem;
+      font-weight: 600;
+    }
+
+    .chart-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 400px;
+      aspect-ratio: 1;
+      margin: 0 auto;
+      animation: fadeUp 0.7s ease-out 0.15s both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .empty-state {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      pointer-events: none;
+      transition: opacity 0.4s;
+    }
+
+    .empty-state.hidden { opacity: 0; }
+
+    .empty-state .icon { font-size: 3.5rem; margin-bottom: 0.5rem; }
+
+    .empty-state p {
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 1.05rem;
+    }
+
+    .input-area {
+      width: 100%;
+      max-width: 400px;
+      margin-top: 1.5rem;
+      animation: fadeUp 0.7s ease-out 0.3s both;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .input-row input {
+      flex: 1;
+      background: var(--input-bg);
+      border: 2px solid transparent;
+      border-radius: var(--radius);
+      padding: 0.85rem 1.1rem;
+      font-size: 1.05rem;
+      font-family: "Nunito", sans-serif;
+      font-weight: 600;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .input-row input::placeholder { color: var(--text-muted); }
+    .input-row input:focus {
+      border-color: var(--accent);
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .input-row button {
+      background: linear-gradient(135deg, #f4a03e, #e85d75);
+      border: none;
+      border-radius: var(--radius);
+      padding: 0 1.3rem;
+      font-size: 1.4rem;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .input-row button:active { transform: scale(0.93); }
+    .input-row button:hover { box-shadow: 0 4px 20px var(--accent-glow); }
+
+    .your-slice {
+      text-align: center;
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      min-height: 1.3em;
+      transition: opacity 0.3s;
+    }
+
+    .your-slice span {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .stats {
+      text-align: center;
+      margin-top: 1.5rem;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 600;
+      animation: fadeUp 0.7s ease-out 0.45s both;
+    }
+
+    .word-list {
+      width: 100%;
+      max-width: 400px;
+      margin-top: 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      justify-content: center;
+      animation: fadeUp 0.7s ease-out 0.5s both;
+    }
+
+    .word-tag {
+      background: var(--surface);
+      border-radius: 999px;
+      padding: 0.35rem 0.85rem;
+      font-size: 0.82rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: background 0.2s;
+    }
+
+    .word-tag:hover { background: var(--surface-hover); }
+
+    .word-tag .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .word-tag .count {
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    .flash {
+      animation: flash 0.4s ease-out;
+    }
+
+    @keyframes flash {
+      0% { box-shadow: 0 0 0 0 var(--accent-glow); }
+      50% { box-shadow: 0 0 30px 8px var(--accent-glow); }
+      100% { box-shadow: 0 0 0 0 transparent; }
+    }
+
+    @media (min-width: 600px) {
+      body { padding: 2.5rem 2rem 3rem; }
+      h1 { font-size: 3rem; }
+      .chart-wrap { max-width: 440px; }
+      .input-area { max-width: 440px; }
+      .word-list { max-width: 440px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Pie Party</h1>
+    <p class="subtitle">What is everyone talking about?</p>
+  </header>
+
+  <div class="chart-wrap">
+    <canvas id="pie"></canvas>
+    <div class="empty-state" id="empty">
+      <div class="icon">🥧</div>
+      <p>Add the first slice!</p>
+    </div>
+  </div>
+
+  <div class="input-area">
+    <div class="input-row">
+      <input
+        type="text"
+        id="word"
+        placeholder="One word — what'd you talk about?"
+        maxlength="30"
+        autocomplete="off"
+        enterkeyhint="send"
+      />
+      <button id="submit" aria-label="Submit">🥧</button>
+    </div>
+    <div class="your-slice" id="status"></div>
+  </div>
+
+  <div class="stats" id="stats"></div>
+  <div class="word-list" id="words"></div>
+
+  <script>
+    const PALETTE = [
+      "#f4a03e","#e85d75","#6ec6ca","#b07cd8","#7ecb6a",
+      "#e8a0bf","#d4c95b","#5b9bd5","#f07c5a","#7ad4a5",
+      "#c9876d","#8b8de8","#c5e078","#db7f9b","#6ad4d4",
+      "#d9a6e0","#a0c964","#e2c47a","#7aacd9","#d17ab0",
+    ];
+
+    const socket = io();
+    const input = document.getElementById("word");
+    const btn = document.getElementById("submit");
+    const statusEl = document.getElementById("status");
+    const statsEl = document.getElementById("stats");
+    const wordsEl = document.getElementById("words");
+    const emptyEl = document.getElementById("empty");
+
+    const KEY = "pieparty_word";
+    let myWord = localStorage.getItem(KEY) || "";
+
+    if (myWord) {
+      statusEl.innerHTML = `Your slice: <span>${esc(myWord)}</span>`;
+    }
+
+    Chart.register(ChartDataLabels);
+
+    const chart = new Chart(document.getElementById("pie"), {
+      type: "doughnut",
+      data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderWidth: 0 }] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        cutout: "30%",
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: "rgba(20,15,30,0.92)",
+            titleFont: { family: "Nunito", weight: "700" },
+            bodyFont: { family: "Nunito" },
+            padding: 10,
+            cornerRadius: 10,
+            callbacks: {
+              label: (ctx) => {
+                const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                const pct = ((ctx.parsed / total) * 100).toFixed(1);
+                return ` ${ctx.label}: ${ctx.parsed} (${pct}%)`;
+              },
+            },
+          },
+          datalabels: {
+            color: "#fff",
+            font: { family: "Nunito", weight: "700", size: 13 },
+            textShadowBlur: 6,
+            textShadowColor: "rgba(0,0,0,0.5)",
+            formatter: (value, ctx) => {
+              const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+              return value / total >= 0.07 ? ctx.chart.data.labels[ctx.dataIndex] : "";
+            },
+          },
+        },
+        animation: { animateRotate: true, duration: 500 },
+      },
+    });
+
+    socket.on("state", (data) => {
+      const entries = Object.entries(data);
+      const labels = entries.map(([w]) => w);
+      const counts = entries.map(([, c]) => c);
+      const colors = labels.map((_, i) => PALETTE[i % PALETTE.length]);
+
+      chart.data.labels = labels;
+      chart.data.datasets[0].data = counts;
+      chart.data.datasets[0].backgroundColor = colors;
+      chart.update();
+
+      const total = counts.reduce((a, b) => a + b, 0);
+      const unique = labels.length;
+
+      emptyEl.classList.toggle("hidden", total > 0);
+
+      if (total > 0) {
+        statsEl.textContent = `${total} slice${total !== 1 ? "s" : ""} · ${unique} topic${unique !== 1 ? "s" : ""}`;
+      } else {
+        statsEl.textContent = "";
+      }
+
+      wordsEl.innerHTML = entries
+        .map(
+          ([w, c], i) =>
+            `<div class="word-tag"><span class="dot" style="background:${PALETTE[i % PALETTE.length]}"></span>${esc(w)} <span class="count">×${c}</span></div>`
+        )
+        .join("");
+    });
+
+    function submit() {
+      const raw = input.value.trim();
+      if (!raw) return;
+      const word = raw.split(/\s+/)[0];
+      socket.emit("submit", { oldWord: myWord || null, newWord: word });
+      myWord = word.toLowerCase().replace(/[^a-z0-9]/g, "");
+      localStorage.setItem(KEY, myWord);
+      statusEl.innerHTML = `Your slice: <span>${esc(myWord)}</span>`;
+      input.value = "";
+      input.blur();
+
+      btn.classList.remove("flash");
+      void btn.offsetWidth;
+      btn.classList.add("flash");
+    }
+
+    btn.addEventListener("click", submit);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submit();
+    });
+
+    input.addEventListener("input", () => {
+      if (input.value.includes(" ")) {
+        input.value = input.value.split(/\s+/)[0];
+      }
+    });
+
+    function esc(s) {
+      const d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
+  </script>
+</body>
+</html>
