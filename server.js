@@ -74,17 +74,9 @@ if (process.env.NODE_ENV !== "production") {
 io.on("connection", (socket) => {
   socket.emit("state", snapshot());
 
-  socket.on("submit", async ({ oldWord, newWord }) => {
-    const fresh = normalize(newWord);
+  socket.on("submit", async ({ word }) => {
+    const fresh = normalize(word);
     if (!fresh || fresh.length > 30) return;
-
-    if (oldWord) {
-      const prev = normalize(oldWord);
-      if (words[prev]) {
-        words[prev]--;
-        if (words[prev] <= 0) delete words[prev];
-      }
-    }
 
     words[fresh] = (words[fresh] || 0) + 1;
     io.emit("state", snapshot());

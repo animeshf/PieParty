@@ -282,12 +282,14 @@
     const wordsEl = document.getElementById("words");
     const emptyEl = document.getElementById("empty");
 
-    const KEY = "pieparty_word";
-    let myWord = localStorage.getItem(KEY) || "";
+    const KEY = "pieparty_words";
+    let myWords = JSON.parse(localStorage.getItem(KEY) || "[]");
 
-    if (myWord) {
-      statusEl.innerHTML = `Your slice: <span>${esc(myWord)}</span>`;
+    function showMySlices() {
+      if (myWords.length === 0) return;
+      statusEl.innerHTML = `Your slices: ${myWords.map(w => `<span>${esc(w)}</span>`).join(", ")}`;
     }
+    showMySlices();
 
     Chart.register(ChartDataLabels);
 
@@ -363,10 +365,12 @@
       const raw = input.value.trim();
       if (!raw) return;
       const word = raw.split(/\s+/)[0];
-      socket.emit("submit", { oldWord: myWord || null, newWord: word });
-      myWord = word.toLowerCase().replace(/[^a-z0-9]/g, "");
-      localStorage.setItem(KEY, myWord);
-      statusEl.innerHTML = `Your slice: <span>${esc(myWord)}</span>`;
+      const normalized = word.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (!normalized) return;
+      socket.emit("submit", { word });
+      myWords.push(normalized);
+      localStorage.setItem(KEY, JSON.stringify(myWords));
+      showMySlices();
       input.value = "";
       input.blur();
 
