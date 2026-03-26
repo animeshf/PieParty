@@ -17,6 +17,13 @@ Pie Party is a real-time web app for collecting one-word conversation topics and
 - Firebase Admin / Firestore
 - Chart.js
 
+## Project structure
+
+- `server.js` – Express + Socket.IO server and Firestore integration
+- `public/index.html` – frontend UI and live chart rendering
+- `test/helpers.test.js` – unit tests for pure helper functions
+- `render.yaml` – Render deployment config
+
 ## Running locally
 
 1. Install dependencies:
@@ -29,6 +36,16 @@ Pie Party is a real-time web app for collecting one-word conversation topics and
    npm start
    ```
 4. Open `http://localhost:3000`
+
+## Running tests
+
+```bash
+npm test
+```
+
+Current tests cover:
+- `normalize()`
+- `snapshot()`
 
 ## API
 
